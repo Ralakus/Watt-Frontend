@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace Watt {
@@ -10,31 +11,45 @@ namespace Watt {
         std::cout << "Watt frontend version " << Watt::version << std::endl; 
     }
 
-    void print_help_base() {
+    void print_help() {
         print_version();
         std::cout << "-h or --help to print help" << std::endl;
         std::cout << "-f or --file <file> to compile files" << std::endl;
         std::cout << "-v or --version for version info" << std::endl;
     }
 
-    void print_help_exit(int return_val) {
-        print_help_base();
-        std::exit(return_val);
-    }
+    bool read_file(std::string& str, const std::string_view& file_name) {
+
+        std::ifstream file(file_name.data(), std::ios::binary | std::ios::ate);
+
+        if(!file.is_open()) {
+            std::cout << "Failed to read file \"" << file_name << "\"!" << std::endl;
+            return false;
+        }
+
+        size_t size = file.tellg();
+        str.resize(size, '\0');
+        file.seekg(0);
+        file.read(&str[0], size);
+
+        file.close();
+
+        return true;        
+    } 
 
 }
 
 
 int main(int argc, char* argv[]) {
 
-    std::vector<std::string> args{argv + 1, argv + argc};
+    std::vector<std::string_view> args{argv + 1, argv + argc};
 
     if(args.size() == 0) {
         std::cout << "No arguments!" << std::endl;
         return EXIT_FAILURE;
     }
 
-    std::vector<std::pair<std::string, std::string>> files;  // Filename, file contents
+    std::vector<std::pair<std::string_view, std::string>> files;  // Filename, file contents
 
     enum class arg_parse_state {
         other, files
@@ -43,8 +58,8 @@ int main(int argc, char* argv[]) {
     for(const auto& arg : args) {
 
         if(arg=="-h" || arg=="--help") {
-            parse_state = arg_parse_state::other;
-            Watt::print_help_exit(EXIT_SUCCESS);
+            Watt::print_help();
+            return EXIT_SUCCESS;
         } 
 
         else if (arg=="-f" || arg=="--file") {
@@ -53,30 +68,26 @@ int main(int argc, char* argv[]) {
         }
 
         else if(arg=="-v" || arg=="--version") {
-            parse_state = arg_parse_state::files;
             Watt::print_version();
             return EXIT_SUCCESS;
         }
 
-        else if(arg=="--live") {
-            std::cout << "Live compilation is not supported yet" << std::endl;
+        else if(arg=="--repl") {
+            std::cout << "REPL compilation is not supported yet" << std::endl;
             return EXIT_SUCCESS;
         }
 
         else if(parse_state == arg_parse_state::files) {
-            std::ifstream file(arg);
-            if(!file.is_open()) {
-                std::cout << "Failed to open file: \"" << arg << "\"!" << std::endl;
+            files.emplace_back(std::make_pair(arg, std::string()));
+            if(!Watt::read_file(files.back().second, files.back().first)) {
                 return EXIT_FAILURE;
             }
-            files.emplace_back(std::make_pair(arg, std::string((std::istreambuf_iterator<char>(file)),
-                                                                std::istreambuf_iterator<char>())));
         }
 
         else {
-            parse_state = arg_parse_state::files;
             std::cout << "Invalid argument: \"" << arg << '\"' << std::endl;
-            Watt::print_help_exit(EXIT_FAILURE);
+            Watt::print_help();
+            return EXIT_FAILURE;
         }
 
     }
